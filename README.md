@@ -1,7 +1,7 @@
     Dinos v.alpha
                     by Sam Dorfman <samdorfman0@gmail.com>
 
-Dinos is a mesozoic animation in ASCII art based on asciiquarium.
+Dinos is a mesozoic animation in ASCII art.
 
 Installation
 ------------
@@ -41,9 +41,10 @@ While running:
 	q	quit
 	r	redraw (will recreate all entities)
 	p	toggle pause
-  a asteroid (not working yet)
+  a asteroid (coming soon)
 
 Contributors
 ------------
 
-All original code from Kirk Baucom (asciiquarium)
+Sam Dorfman
+Based on code from Kirk Baucom (asciiquarium)

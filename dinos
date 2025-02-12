@@ -1,18 +1,80 @@
 #!/usr/bin/env perl
 
+#############################################################################
+# Dinos - A mesozoic animation in ASCII art
+#
+# This program displays an animation using ASCII art.
+# It requires the module Term::Animation, which requires Curses. You
+# can get both modules from http://search.cpan.org. It will
+# only run on platforms with a curses library, so Windows is not supported.
+#
+#############################################################################
+
 use Term::Animation 2.0;
 use Term::Animation::Entity;
 use Data::Dumper;
 use Curses;
-use Getopt::Std;
 use strict;
 use warnings;
 
-$anim = Term::Animation->new();
+my $anim1 = Term::Animation->new();
+$anim1->color(1);
+my ($width, $height) = $anim1->screen_size();
+halfdelay(1);
+my $dinoArt = <<'END_ART';
+  ______    _______  ___   ___   _____     ______
+ |  __  \  |__   __| |  \  | |  /  _  \   /  ____|
+ | |  |  |    | |    | | \ | | |  | |  | |  (___
+ | |  |  |    | |    | |\ \| | |  | |  |  \___  \ 
+ | |__|  |  __| |__  | | \ | | |  |_|  |  ____)  |
+ |______/  |_______| |_|  \__|  \_____/  |______/
+
+
+Usage:
+ Press h for help
+ Press p to pause/play
+ Press a for asteroid (coming soon)
+ Press c to continue to Dinos! 
+END_ART
+
+$anim1->new_entity(
+            shape => $dinoArt,
+            position => [$width / 2 - 25, $height / 2 - 7, 0],
+);
+
+print STDERR ("hello\n");
+# Intro screen loop
+while (1) {
+    $anim1->animate();
+
+    # Check for terminal resize
+    my ($new_width, $new_height) = $anim1->screen_size();
+    if ($new_width != $width || $new_height != $height) {
+        #resizeterm($new_height, $new_width);
+        #$anim1->update_term_size();
+        
+        # Update entity position
+        #my $entity->{position} = [$new_height / 2 - 7, $new_width / 2 - 25, 0];
+        
+        $width = $new_width;
+        $height = $new_height;
+        #$anim1->update_term_size();
+		    $anim1->remove_all_entities();
+        $anim1->redraw_screen();
+        #my $entity->position($width / 2 - 25, $height / 2 - 7, 0)
+    }
+
+    my $input = getch();
+    if ($input eq 'c') { last; }
+}
+
+# main
+my $anim = Term::Animation->new();
+$anim->color(1);
 # set the delay for getch
-halfdelay( 1 );
+halfdelay(1);
 # create a simple shape we can move around
-$shape = "<=O=>";
+my $shape = "<=O=>";
 # turn our shape into an animation object
 $anim->new_entity(
              shape         => $shape,        # object shape
@@ -20,8 +82,8 @@ $anim->new_entity(
              callback_args => [1, 0, 0, 0],  # the default callback
                                              #  routine takes a list
                                              #  of x,y,z,frame deltas
-             wrap          => 1              # turn screen wrap on
 );
+
 # animation loop
 while(1) {
   # run and display a single animation frame
