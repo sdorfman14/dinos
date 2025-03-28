@@ -12,86 +12,652 @@
 
 use Term::Animation 2.0;
 use Term::Animation::Entity;
+use Time::HiRes qw(time);
 use Data::Dumper;
 use Curses;
 use strict;
 use warnings;
 
-my $anim1 = Term::Animation->new();
-$anim1->color(1);
-my ($width, $height) = $anim1->screen_size();
-halfdelay(1);
-my $dinoArt = <<'END_ART';
-  ______    _______  ___   ___   _____     ______
- |  __  \  |__   __| |  \  | |  /  _  \   /  ____|
- | |  |  |    | |    | | \ | | |  | |  | |  (___
- | |  |  |    | |    | |\ \| | |  | |  |  \___  \ 
- | |__|  |  __| |__  | | \ | | |  |_|  |  ____)  |
- |______/  |_______| |_|  \__|  \_____/  |______/
+main();
+
+  sub add_aquatic_dino {
+      my ($anim, $y) = @_;
+
+      my $shape = q{
+     ___//---____    /
+____/_o___   ____---|  
+        \\\\---\\\\      \
+};
+
+      my @colors = ('g', 'y', 'c', 'w', 'm', 'b');
+      
+      # Add the aquatic dino to the animation
+      my $aquatic_dino = $anim->new_entity(
+          type => 'aquatic',
+          position => [$anim->width() - 3, $y, 1],
+          shape => $shape,                     
+          default_color => $colors[int(rand(6))],
+          callback_args => [-1, 0, 0, 0],
+          die_offscreen => 1,
+          coll_handler	=> \&dino_collision, 
+          physical => 1,
+      );
+  }
+
+  sub add_terrestrial_dino {
+      my ($anim, $y) = @_;
+      $y = $y - 5;
+
+      my @frames = (
+        q{
+                       __
+                      / o)
+             _.----._/ /
+            /         /
+         __/ (  | (  |
+        /__.-'|_|--|_| },
+        q{
+                       __
+                      / o)
+             _.----._/ /
+            /         /
+         __/ (  |  ( \
+        /__.-'|_|---\_\ },
+        q{
+                       __
+                      / o)
+             _.----._/ /
+            /         /
+         __/ ( \   ( \
+        /__.-'\_\---\_\ },
+        q{
+                       __
+                      / o)
+             _.----._/ /
+            /         /
+         __/  (  / ( \
+        /__.-'/_/---\_\ },
+        q{
+                       __
+                      / o)
+             _.----._/ /
+            /         /
+         __/  (  / ( |
+        /__.-'/_/--/_/  },
+      );
+
+      my @colors = ('g', 'y', 'c', 'w', 'm', 'b');
+
+      # Add the terrestrial dino to the animation
+      my $terrestrial_dino = $anim->new_entity(
+        type => 'terrestrial',
+        position => [0, $y, 1],
+        shape => \@frames,
+        default_color => $colors[int(rand(6))],
+        auto_trans => 1,
+        callback_args => [1, 0, 0, 1],
+        die_offscreen => 1,
+        coll_handler => \&dino_collision,
+        physical => 1,
+    );
+  }
+
+  sub add_avian_dino {
+      my ($anim, $y) = @_;
+
+      my @shapes = ([
+      q{
+             /----/
+          / /    /
+      __o/==|====|===_
+      \---------------**
 
 
-Usage:
- Press h for help
- Press p to pause/play
- Press a for asteroid (coming soon)
- Press c to continue to Dinos! 
-END_ART
+      },
+      q{
+             
+          /     
+      __o/==|====|===_
+      \-----||||||----**
 
-$anim1->new_entity(
-            shape => $dinoArt,
-            position => [$width / 2 - 25, $height / 2 - 7, 0],
-);
 
-print STDERR ("hello\n");
-# Intro screen loop
-while (1) {
-    $anim1->animate();
+      },
+      q{
+      
+          /     
+      __o/==|====|===_
+      \---------------**
+            \    \
+             \____\
+      },
+      q{
+             
+          /     
+      __o/==|====|===_
+      \-----||||||----**
 
-    # Check for terminal resize
-    my ($new_width, $new_height) = $anim1->screen_size();
-    if ($new_width != $width || $new_height != $height) {
-        #resizeterm($new_height, $new_width);
-        #$anim1->update_term_size();
+
+      }  
+      ],[
+      q{
+           \----\
+            \    \   /
+        _===|====|==/o__
+      **---------------/
+
+
+      },
+      q{
+      
+                     /
+        _===|====|==/o__
+      **----||||||-----/
+
+
+      },
+      q{
+      
+                     /
+        _===|====|==/o__
+      **---------------/
+            /    /
+           /____/
+      },
+      q{
+      
+                     /
+        _===|====|==/o__
+      **----||||||-----/
+
+
+      }
+      ]);
+
+      my $dir = int(rand(2));
+      my $sh = 0;
+      if ($dir == 0) { $sh = 1; }
+      my $shape = $shapes[$sh];
+      my @x_options = (3, $anim->width() - 3);
+      my $x = $x_options[$dir];
+      if ($dir eq 0) { $dir = 1; }
+      else { $dir = -1; }
+
+      my @colors = ('g', 'y', 'c', 'w', 'm', 'b');
+
+      # Add the avian dino to the animation
+      my $avian_dino = $anim->new_entity(
+          type => 'avian',
+          position => [$x, $y, 1],
+          shape => $shape,                    
+          default_color => $colors[int(rand(6))],
+          callback_args => [$dir * 2, 0, 0, 1],
+          coll_handler => \&dino_collision,
+          die_offscreen => 1,
+          physical => 1,
+      );
+  }
+
+sub dino_collision {
+  my ($dino, $anim) = @_;
+  my $collisions = $dino->collisions();
+  #return unless defined $collisions;
+  foreach my $col_obj (@{$collisions}) {
+    if ($col_obj->type eq 'barrier') {
+        if($dino->type eq 'terrestrial') {
+            # Get the current x direction from the callback_args
+            my $x_dir = $dino->callback_args->[0];
+
+            # Reverse the direction
+            $dino->callback_args->[0] = -$x_dir;
+            my @frames2 = (
+        q{
+         __ 
+        (o \
+          \ \_.----._
+           \         \
+            | (  |  ( \__
+            |_|--|_|'-.__\
+        },
+        q{
+         __ 
+        (o \
+          \ \_.----._
+           \         \
+            / (  |  ( \__
+           /_/---|_|'-.__\
+        },
+        q{
+         __ 
+        (o \
+          \ \_.----._
+           \         \
+            / (   / ( \__
+           /_/---/_/'-.__\
+        },
+        q{
+         __ 
+        (o \
+          \ \_.----._
+           \         \
+            / ( \  (  \__
+           /_/---\_\'-.__\
+        },
+        q{
+         __ 
+        (o \
+          \ \_.----._
+           \         \
+            | ( \  (  \__
+            \_\--\_\'-.__\
+        }
+        );
+
+            $dino->shape(\@frames2);
+        } elsif ($dino->type eq 'aquatic') {
+            # Get the current x direction from the callback_args
+            my $x_dir = $dino->callback_args->[0];
+
+            # Reverse the direction
+            $dino->callback_args->[0] = -$x_dir;
+            my $shape2 = 
+q{
+\    ____---\\\\___
+ |---____   ___o_\____
+/      //---//
+}; 
+            $dino->shape($shape2);
+        }
+    } elsif ($col_obj->type eq 'asteroid') {
+        $dino->kill();
+    }
+  }
+}
+
+
+
+sub add_background {
+    my ($anim, $screen_width, $screen_height) = @_;
+    my $half_width = int($screen_width / 2);
+    my $ground_level = int($screen_height * 0.7);
+    my $divider_shape1 = q{\_};
+    my $divider_shape2 = q{|};
+    my $divider_mask1 = q{yy}; # change to brown?
+    my $divider_mask2 = q{y}; # change to brown?
+    my @divider_shapes = ($divider_shape1, $divider_shape2);
+    my @divider_masks = ($divider_mask1, $divider_mask2);
+
+    # Add grass ground
+    $anim->new_entity(
+        shape => ['#' x $half_width],
+        position => [0, $ground_level, 20],  # x, y, depth
+        color => ['g' x $half_width],
+    );
+
+    # Add water
+    $anim->new_entity(
+        shape => ['~' x ($screen_width - $half_width)],
+        position => [$half_width, $ground_level, 20],  # x, y, depth
+        color => ['b' x ($screen_width - $half_width)], 
+    );
+
+    # Add divider
+    my $seafloor_start;
+    my $divider_length = $screen_height - $ground_level;
+    my $type1 = 0;
+    my $type2 = 0;
+    for my $i (0..$divider_length) {
+        my $type = int(rand(2));
+
+        my $x = $half_width + 2 * $type1 + $type2;
+        my $y = $ground_level + 1 + $i;
+        last if $x >= $screen_width || $y >= $screen_height;
+
+        $anim->new_entity(
+            shape => ['#' x ($x + 1)],
+            position => [0, $y, 19],  # x, y, depth 
+            color => ['y' x ($x + 1)],
+        );
         
-        # Update entity position
-        #my $entity->{position} = [$new_height / 2 - 7, $new_width / 2 - 25, 0];
-        
-        $width = $new_width;
-        $height = $new_height;
-        #$anim1->update_term_size();
-		    $anim1->remove_all_entities();
-        $anim1->redraw_screen();
-        #my $entity->position($width / 2 - 25, $height / 2 - 7, 0)
+        $anim->new_entity(
+            shape => $divider_shapes[$type],
+            type => 'barrier',
+            position => [$x, $y, 1],  # x, y, depth 
+            color => $divider_masks[$type],
+            physical => 1,
+        );
+
+        $seafloor_start = $x;
+
+        if ( $type eq 0 ) { $type1 = $type1 + 1; }
+        else { $type2 = $type2 + 1; }
     }
 
-    my $input = getch();
+    # Add underwater ground
+    for my $x ($seafloor_start..$screen_width-1) {
+        my $y = $screen_height - 1;
+        
+        $anim->new_entity(
+            shape => ['#'],
+            position => [$x, $y, 21],  # x, y, depth (behind water)
+            color => ['y'], # change to brown?
+        );
+    }
+
+    # Add trees
+    my $num_trees = int(rand(3)) + 1;  # Random number between 1 and 3
+    for my $tree (1..$num_trees) {
+        add_tree($anim, $half_width, $ground_level);
+    }
+
+    # Add Invisible Barrier (for collisions)
+    $anim->new_entity(
+        type => 'barrier',
+        shape => ["|\n"x $ground_level],
+        position => [$half_width, 0, 1],
+        default_color => 'k',
+        physical => 1,
+    );
+
+    # Add asteroid stopper
+    $anim->new_entity(
+        type => 'stopper',
+        shape => '#',
+        color => 'y',
+        position => [$half_width, $ground_level + ($screen_height - $ground_level) / 2, 1],
+        physical => 1,
+    );
+}
+
+sub add_tree {
+    my ($anim, $half_width, $ground_level) = @_;
+    
+    my $tree_x = int(rand($half_width - 10)) + 5;  # Random x position, at least 5 from edges
+    my $tree_height = int(rand($ground_level * 0.5)) + int($ground_level * 0.2);  # Random height between 20% and 50% of ground level
+    my $trunk_height = int($tree_height * 0.6);  # Trunk is about 60% of tree height
+    my $leaf_radius = int($tree_height * 0.2);  # Leaf radius proportional to tree height
+    my $trunk_width = int($leaf_radius);  # Trunk width proportional to leaf size, minimum 1
+    if ($leaf_radius % 2 eq 0) { $trunk_width = $trunk_width + 1; }
+
+    # Tree trunk
+    for my $y ($ground_level - $trunk_height .. $ground_level - 1) {
+        my $trunk_char = $trunk_width > 1 ? '|' x $trunk_width : '|';
+        $anim->new_entity(
+            shape => [$trunk_char],
+            position => [$tree_x - int($trunk_width / 2), $y, 23],  # x, y, depth (in front of background)
+            color => ['r' x $trunk_width],  # brown color for trunk?
+        );
+    }
+
+    # Tree leaves (circular)
+    for my $dy (-$leaf_radius .. $leaf_radius) {
+        for my $dx (-$leaf_radius .. $leaf_radius) {
+            if ($dx*$dx + $dy*$dy <= $leaf_radius*$leaf_radius) {  # Circle equation
+                $anim->new_entity(
+                    shape => ['@'],
+                    position => [$tree_x + $dx, $ground_level - $trunk_height + $dy, 22],  # x, y, depth (in front of trunk)
+                    color => ['g'],  # green color for leaves
+                );
+            }
+        }
+    }
+}
+
+sub asteroid_stop {
+    my ($asteroid, $anim) = @_;
+    my $collisions = $asteroid->collisions();
+    #return unless defined $collisions;
+    foreach my $col_obj (@{$collisions}) {
+        if ($col_obj->type eq 'stopper') {
+            foreach my $ast ($anim->get_entities_of_type('asteroid')) {
+                $asteroid->callback_args->[1] = 0;
+            }
+        }
+    }
+}
+
+sub min {
+    my ($a, $b) = @_;
+    if ($a > $b) { return($b); }
+    return($a);
+}
+
+sub spawnAsteroid {
+    my ($anim, $screen_width, $screen_height) = @_;
+
+    # Calculate Asteroid Radius
+    my $radius = $screen_height / 3;
+
+    for my $dy (-$radius .. $radius) {
+        for my $dx ((-2 * $radius) .. (2 * $radius)) {
+            if ($dx*$dx + $dy*$dy <= $radius*$radius) {  # Circle equation
+                    $anim->new_entity(
+                        type => 'asteroid',
+                        shape => ['@'],
+                        position => [($screen_width / 2) + $dx, $dy - $radius, 1], 
+                        color => ['r'],
+                        callback_args => [0, 5, 0, 0],
+                        physical => 1,
+                        coll_handler => \&asteroid_stop,
+                    );
+            }
+        }
+    }
+    
+}
+
+
+sub displayHelpScreen {
+    my $help_screen = Term::Animation->new();
+    $help_screen->color(1);
+    my ($width, $height) = $help_screen->screen_size();
+    
+    my $help_text = q{
+    Dinos - A mesozoic animation in ASCII art
+
+    Controls:
+    h - Display this help screen
+    p - Pause/Resume the animation
+    a - Summon an asteroid (coming soon)
+    q - Quit the program
+    r - Redraw the animation
+
+    Press any key to return to the animation...
+    };
+
+    $help_screen->new_entity(
+        shape => $help_text,
+        position => [$width / 2 - 30, $height / 2 - 5, 0],
+    );
+
+   
+    while (1) {
+        $help_screen->animate();
+        my $input = getch();
+        if ($input ne KEY_RESIZE() && $input ne ERR) {
+            last;
+        }
+        elsif ($input eq KEY_RESIZE()) {
+          $help_screen->update_term_size();
+          ($width, $height) = $help_screen->screen_size();
+          $help_screen->remove_all_entities();
+          $help_screen->redraw_screen();
+          $help_screen->new_entity(
+            shape => $help_text,
+            position => [$width / 2 - 30, $height / 2 - 5, 0],
+          );
+        }
+    }
+
+    $help_screen->end();
+}
+
+sub quit {
+	my ($mesg) = @_;
+	print STDERR $mesg, "\n" if(defined($mesg));
+	exit;
+}
+
+sub main {
+
+  my $anim1 = Term::Animation->new();
+  $anim1->color(1);
+  my ($width, $height) = $anim1->screen_size();
+  halfdelay(1);
+  my $dinoArt = q{
+     ______    _______  ___   ___   _____     ______
+    |  __  \  |__   __| |  \  | |  /  _  \   /  ____|
+    | |  |  |    | |    | | \ | | |  | |  | |  (___
+    | |  |  |    | |    | |\ \| | |  | |  |  \___  \ 
+    | |__|  |  __| |__  | | \ | | |  |_|  |  ____)  |
+    |______/  |_______| |_|  \__|  \_____/  |______/
+
+
+    Usage:
+    Press h for help
+    Press p to pause/play
+    Press a for asteroid (coming soon)
+    Press q to quit
+    Press c to continue to Dinos! 
+    };
+
+  my $color_mask = q{
+     gggggg    yyyyyyy  bbb   bbb   rrrrr     cccccc
+    g  gg  g  yyy   yyy b  b  b b  r  r  r   c  ccccc
+    g g  g  g    y y    b b b b b r  r r  r c  cccc
+    g g  g  g    y y    b bb bb b r  r r  r  cccc  c 
+    g gggg  g  yyy yyy  b b b b b r  rrr  r  ccccc  c
+    gggggggg  yyyyyyyyy bbb  bbbb  rrrrrrr  cccccccc
+
+
+    wwwwww
+    wwwww w www wwww
+    wwwww w ww wwwwwwwwww
+    wwwww w www wwwwwwww wwwwwww wwwww
+    wwwww w ww wwww
+    wwwww w ww wwwwwwww ww wwwwww 
+    };
+
+    
+  while (1) {
+    $anim1->new_entity(
+                shape => $dinoArt,
+                position => [$width / 2 - 25, $height / 2 - 7, 0],
+                color => $color_mask,
+                default_color => 'black',
+    );
+
+    my $input;
+    # Intro screen loop
+    while (1) {
+        $anim1->animate();
+
+        $input = getch();
+        if ($input eq 'c') { last; }
+        if ($input eq 'q') { quit(); }
+        if ($input eq KEY_RESIZE()) { last; }
+    }
     if ($input eq 'c') { last; }
-}
+    $anim1->update_term_size();
+    ($width, $height) = $anim1->screen_size();
+    $anim1->remove_all_entities();
+    $anim1->redraw_screen();
+  }
 
-# main
-my $anim = Term::Animation->new();
-$anim->color(1);
-# set the delay for getch
-halfdelay(1);
-# create a simple shape we can move around
-my $shape = "<=O=>";
-# turn our shape into an animation object
-$anim->new_entity(
-             shape         => $shape,        # object shape
-             position      => [3, 7, 10],    # row / column / depth
-             callback_args => [1, 0, 0, 0],  # the default callback
-                                             #  routine takes a list
-                                             #  of x,y,z,frame deltas
-);
+  my $anim = Term::Animation->new();
+  $anim->color(1);
+  # set the delay for getch
+  halfdelay(2);
+  my $paused = 0;
 
-# animation loop
-while(1) {
-  # run and display a single animation frame
-  $anim->animate();
-  # use getch to control the frame rate, and get input at the
-  # same time. (not a good idea if you are expecting much input)
-  my $input = getch();
-  if($input eq 'q') { last; }
+  my $last_dino_add_time = 0;
+  my $dino_add_interval = 3; # Add a dino every 3 seconds
+  my $max_dinos = 10; # Maximum number of dinos on screen
+
+  while(1) {
+      my $screen_width = $anim->width();
+      my $screen_height = $anim->height();
+      my $half_width = int($screen_width / 2);
+      my $ground_level = int($screen_height * 0.7);
+      my $asteroid = 0;
+
+      my %levels = (
+          avian1 =>  int(($ground_level * 0.5) / 3),
+          avian2 =>  int($ground_level / 3),
+          avian3 =>  ($ground_level * 0.5),
+          terrestrial => ($ground_level - 1),
+          aquatic1 => ($screen_height - (2 * int(($screen_height - $ground_level) / 3))),
+          aquatic2 => ($screen_height - int(($screen_height - $ground_level) / 3)),
+      );
+
+      add_background($anim, $screen_width, $screen_height);
+      add_aquatic_dino($anim, $levels{'aquatic1'});
+      add_avian_dino($anim, $levels{'avian1'});
+      add_terrestrial_dino($anim, $levels{'terrestrial'});
+
+      # animation loop
+      while(1) {
+          my $current_time = time();
+
+          if (!$asteroid) {
+            # Add a new dino every $dino_add_interval seconds, if below max
+            if ($current_time - $last_dino_add_time >= $dino_add_interval) {
+                my @aquatic_dinos     = @{ $anim->get_entities_of_type('aquatic') };
+                my @terrestrial_dinos = @{ $anim->get_entities_of_type('terrestrial') };
+                my @avian_dinos       = @{ $anim->get_entities_of_type('avian') };
+
+                my $aquatic_count     = scalar @aquatic_dinos;
+                my $terrestrial_count = scalar @terrestrial_dinos;
+                my $avian_count       = scalar @avian_dinos;
+
+                if (($aquatic_count + $terrestrial_count + $avian_count) < 6) {
+                    my $added = 0;
+                    while (!$added) {
+                        my $dino_type = int(rand(3));
+                        if ($dino_type == 0 && $aquatic_count < 2) {
+                            my $rand = int(rand(2));
+                            if ($rand == 0) {
+                                add_aquatic_dino($anim, $levels{'aquatic1'});
+                            } else {
+                                add_aquatic_dino($anim, $levels{'aquatic2'});
+                            }
+                            $added = 1;
+                        } elsif ($dino_type == 1 && $avian_count < 3) {
+                            my $rand = int(rand(3));
+                            if ($rand == 0) {
+                                add_avian_dino($anim, $levels{'avian1'});
+                            } elsif ($rand == 1) {
+                                add_avian_dino($anim, $levels{'avian2'});
+                            } else {
+                                add_avian_dino($anim, $levels{'avian3'});
+                            }
+                            $added = 1;
+                        } elsif ($terrestrial_count < 1) {
+                            add_terrestrial_dino($anim, $levels{'terrestrial'});
+                            $added = 1;
+                        }
+                    } 
+                }
+                $last_dino_add_time = $current_time;
+            }
+          }
+
+          # run and display a single animation frame
+          $anim->animate() unless($paused);
+
+          # use getch to control the frame rate, and get input at the same time.
+          my $input = getch();
+          if($input eq 'q') { quit(); }
+          if($input eq 'r' || $input eq KEY_RESIZE()) { last; }
+          if($input eq 'h') { displayHelpScreen(); }
+          if($input eq 'p') { $paused = !$paused; }
+          if($input eq 'a') { 
+            spawnAsteroid($anim, $screen_width, $screen_height); 
+            $asteroid = 1;
+          }
+      }
+      $anim->update_term_size();
+      $anim->remove_all_entities();
+  }
+
+  $anim->end();
 }
-# cleanly end the animation, to avoid hosing up the user's terminal
-$anim->end();
